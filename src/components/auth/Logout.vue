@@ -19,7 +19,7 @@
         const auth = getAuth();
         try {
           await signOut(auth);
-          router.push('/login');
+          router.push('/adminlogin');
         } catch (error) {
           console.error('Error al cerrar sesión:', error);
         }
