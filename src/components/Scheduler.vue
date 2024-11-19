@@ -1,11 +1,7 @@
 <template>
   <div class="p-6 max-w-full mx-auto bg-base-100 rounded-xl shadow-lg">
-
-    <!-- Título de la categoría seleccionada -->
     <h2 class="text-xl font-semibold text-primary mb-4 text-center">Categoría seleccionada: {{ selectedCategoria }}</h2>
 
-
-    <!-- Selección de Categoría (con botones pequeños) -->
     <div class="mb-6">
       <h3 class="text-lg font-medium text-gray-700 mb-2">Seleccionar Categoría:</h3>
       <div class="flex flex-wrap gap-2">
@@ -21,9 +17,7 @@
       <p v-if="categoriaInfo === null" class="mt-4 text-red-500">Seleccione una categoría para ver su información.</p>
     </div>
 
-    <!-- Contenedor para la tabla y la selección de materias -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <!-- Información de las materias seleccionadas (izquierda) -->
       <div class="flex-1">
         <div class="overflow-x-auto">
           <table v-if="materiasSeleccionadas.length > 0" class="table table-zebra w-full">
@@ -50,7 +44,6 @@
         </div>
       </div>
 
-      <!-- Selección de materias (derecha) -->
       <div class="flex-1">
         <div v-if="categoriaInfo" class="mb-4">
           <h3 class="text-lg font-medium text-gray-700 mb-4">Seleccionar Materias:</h3>
@@ -61,6 +54,7 @@
                 :value="materia.id"
                 v-model="materiasSeleccionadasIds"
                 class="checkbox checkbox-primary"
+                @change="guardarSeleccion(materia)"
               />
               <span>{{ materia.asignatura }}</span>
             </label>
@@ -73,21 +67,22 @@
 
 <script>
 import { db } from '@/stores/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default {
   data() {
     return {
-      categorias: [],  // Array para almacenar las categorías
-      categoriasConHorarios: [],  // Categorías que tienen horarios disponibles
-      selectedCategoriaId: null,  // Id de la categoría seleccionada
-      selectedCategoria: null,  // Nombre de la categoría seleccionada
-      categoriaInfo: null,  // Información de la categoría seleccionada
-      materiasSeleccionadasIds: JSON.parse(localStorage.getItem('materiasSeleccionadas')) || [],  // Recuperar las materias seleccionadas desde localStorage
+      categorias: [],
+      categoriasConHorarios: [],
+      selectedCategoriaId: null,
+      selectedCategoria: null,
+      categoriaInfo: null,
+      userID: null, // ID del usuario autenticado
+      materiasSeleccionadasIds: [], // Materias seleccionadas del usuario actual
     };
   },
   computed: {
-    // Obtener las materias seleccionadas a partir de sus IDs
     materiasSeleccionadas() {
       let seleccionadas = [];
       this.categoriasConHorarios.forEach(categoria => {
@@ -101,15 +96,20 @@ export default {
     }
   },
   async created() {
-    // Llamar a la función para cargar las categorías
     await this.fetchCategorias();
+
+    // Observar el estado de autenticación
+    onAuthStateChanged(this.$firebaseAuth, async (user) => {
+      if (user) {
+        this.userID = user.uid;
+        await this.cargarMateriasSeleccionadas();
+      }
+    });
   },
   methods: {
-    // Obtener las categorías disponibles desde la base de datos
     async fetchCategorias() {
       try {
         const categoriasSnapshot = await getDocs(collection(db, 'categorias'));
-
         if (categoriasSnapshot.empty) {
           console.log("No hay categorías disponibles.");
         } else {
@@ -117,23 +117,17 @@ export default {
             id: doc.id,
             ...doc.data(),
           }));
-
-          // Filtrar solo las categorías que tienen horarios disponibles
           this.categoriasConHorarios = await this.getCategoriasConHorarios(this.categorias);
         }
       } catch (error) {
         console.error('Error al obtener las categorías:', error);
       }
     },
-
-    // Obtener las categorías que tienen horarios disponibles desde las subcolecciones
     async getCategoriasConHorarios(categorias) {
       const categoriasConHorarios = [];
-
       for (let categoria of categorias) {
         const horariosRef = collection(db, 'categorias', categoria.id, 'horarios');
         const horariosSnapshot = await getDocs(horariosRef);
-
         if (!horariosSnapshot.empty) {
           categoriasConHorarios.push({
             id: categoria.id,
@@ -145,26 +139,45 @@ export default {
           });
         }
       }
-
       return categoriasConHorarios;
     },
-
-    // Mostrar información de la categoría seleccionada y sus horarios
     mostrarInformacion(categoriaSeleccionada) {
-      this.selectedCategoria = categoriaSeleccionada.nombre;  // Actualiza la categoría seleccionada
-      this.categoriaInfo = categoriaSeleccionada;  // Guarda la información de la categoría y horarios
-      this.selectedCategoriaId = categoriaSeleccionada.id; // Actualiza el id de la categoría seleccionada
+      this.selectedCategoria = categoriaSeleccionada.nombre;
+      this.categoriaInfo = categoriaSeleccionada;
+      this.selectedCategoriaId = categoriaSeleccionada.id;
+    },
+    async guardarSeleccion(materia) {
+      if (!this.userID) return;
+
+      const userRef = doc(db, 'usuarios', this.userID);
+
+      try {
+        if (this.materiasSeleccionadasIds.includes(materia.id)) {
+          // Eliminar materia
+          await updateDoc(userRef, {
+            horarios: arrayRemove(materia),
+          });
+        } else {
+          // Agregar materia
+          await updateDoc(userRef, {
+            horarios: arrayUnion(materia),
+          });
+        }
+      } catch (error) {
+        console.error('Error al guardar la selección:', error);
+      }
+    },
+    async cargarMateriasSeleccionadas() {
+      const userRef = doc(db, 'usuarios', this.userID);
+      const userSnapshot = await getDoc(userRef);
+      if (userSnapshot.exists()) {
+        this.materiasSeleccionadasIds = userSnapshot.data().horarios.map(h => h.id);
+      }
     },
   },
-  watch: {
-    // Guardar las materias seleccionadas en localStorage cada vez que se cambien
-    materiasSeleccionadasIds(newMaterias) {
-      localStorage.setItem('materiasSeleccionadas', JSON.stringify(newMaterias));
-    }
-  }
 };
 </script>
 
 <style scoped>
-/* El estilo sigue siendo limpio y adaptado a DaisyUI y Tailwind */
+/* Estilos con DaisyUI y Tailwind */
 </style>
