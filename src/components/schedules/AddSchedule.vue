@@ -17,10 +17,14 @@
         </select>
       </div>
 
-      <!-- Seleccionar Horario -->
+      <!-- Horas de Inicio y Fin -->
       <div class="mb-4">
-        <label class="block text-sm font-medium text-gray-700">Horario:</label>
-        <input type="text" v-model="horario" required class="input input-bordered w-full" />
+        <label class="block text-sm font-medium text-gray-700">Hora de Inicio:</label>
+        <input type="time" v-model="horaInicio" required class="input input-bordered w-full" />
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700">Hora de Fin:</label>
+        <input type="time" v-model="horaFin" required class="input input-bordered w-full" />
       </div>
 
       <!-- Seleccionar Materia -->
@@ -50,9 +54,9 @@
         <label class="block text-sm font-medium text-gray-700">Salón:</label>
         <select v-model="salon" required class="select select-bordered w-full">
           <option value="" disabled selected>Selecciona un salón</option>
-          <option value="Computo A3">Computo A3</option>
-          <option value="Computo C3">Computo C3</option>
-          <option value="Computo B1">Computo B1</option>
+          <option v-for="salon in salones" :key="salon.id" :value="salon.nombre">
+            {{ salon.nombre }}
+          </option>
         </select>
       </div>
 
@@ -67,16 +71,12 @@
         </select>
       </div>
 
-      <button type="submit" class="w-full mt-4 px-4 py-2 text-white bg-green-500 hover:bg-green-400 rounded">
+      <button type="submit" class="btn btn-outline btn-success w-full mt-4 px-4 py-2 text-white rounded">
         Guardar
       </button>
-      <router-link :to="{ path: '/days', query: { category: categoria } }" class="inline-block w-full mt-2">
-        <button type="button" class="btn btn-primary w-full">Cancelar</button>
-      </router-link>
     </form>
   </div>
 </template>
-
 <script>
 import { collection, addDoc, getDocs, doc } from 'firebase/firestore';
 import { db } from '@/stores/firebase';
@@ -85,20 +85,23 @@ export default {
   data() {
     return {
       dia: '',
-      horario: '',
-      asignatura: '', // Seleccionada desde la lista de materias.
-      docente: '', // Seleccionado desde la lista de docentes.
+      horaInicio: '',
+      horaFin: '',
+      asignatura: '',
+      docente: '',
       salon: '',
       categoria: '',
-      categorias: [], // Categorías cargadas desde Firestore.
-      materias: [], // Materias cargadas desde Firestore.
-      docentes: [] // Docentes cargados desde Firestore.
+      categorias: [],
+      materias: [],
+      docentes: [],
+      salones: [] // Salones cargados desde Firestore
     };
   },
   async created() {
     await this.loadCategorias();
     await this.loadMaterias();
-    await this.loadDocentes(); // Carga la lista de docentes al inicializar.
+    await this.loadDocentes();
+    await this.loadSalones();
   },
   methods: {
     async loadCategorias() {
@@ -134,15 +137,26 @@ export default {
         console.error('Error al cargar docentes:', error);
       }
     },
+    async loadSalones() {
+      try {
+        const snapshot = await getDocs(collection(db, 'salones'));
+        this.salones = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+      } catch (error) {
+        console.error('Error al cargar salones:', error);
+      }
+    },
     async saveSchedule() {
       try {
-        // Referencia a la subcolección 'horarios' dentro de la colección correspondiente a la categoría
-        const categoriaRef = doc(db, 'categorias', this.categoria);  // Referencia a la colección `categorias`
-        const horariosCollection = collection(categoriaRef, 'horarios'); // Subcolección `horarios` dentro de cada categoría
+        const categoriaRef = doc(db, 'categorias', this.categoria);
+        const horariosCollection = collection(categoriaRef, 'horarios');
 
         await addDoc(horariosCollection, {
-          horario: this.horario,
           dia: this.dia,
+          horaInicio: this.horaInicio,
+          horaFin: this.horaFin,
           asignatura: this.asignatura,
           docente: this.docente,
           salon: this.salon

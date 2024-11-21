@@ -1,19 +1,42 @@
 <template>
-  <div class="login-container p-6 max-w-sm mx-auto bg-white rounded-lg shadow-md">
-    <h2 class="text-xl font-bold mb-4 text-center">Login Administrador</h2>
-    <form @submit.prevent="iniciarSesion" class="space-y-4">
+  <div class="login-container p-6 max-w-md mx-auto bg-white rounded-lg shadow-md">
+    <h2 class="text-2xl font-semibold mb-6 text-center text-gray-800">Iniciar sesión como Administrador</h2>
+    <form @submit.prevent="iniciarSesion" class="space-y-6">
       <div>
-        <label for="correo" class="block text-sm font-medium text-gray-700">Correo Electrónico:</label>
-        <input type="email" v-model="correo" placeholder="ejemplo@correo.com" required class="input input-bordered w-full" />
+        <label for="correo" class="block text-sm font-medium text-gray-700">Correo Electrónico</label>
+        <input 
+          type="email" 
+          v-model="correo" 
+          placeholder="ejemplo@correo.com" 
+          required 
+          class="input input-bordered w-full bg-gray-100 text-gray-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" 
+        />
       </div>
       <div>
-        <label for="password" class="block text-sm font-medium text-gray-700">Contraseña:</label>
-        <input type="password" v-model="password" placeholder="Contraseña" required class="input input-bordered w-full" />
+        <label for="password" class="block text-sm font-medium text-gray-700">Contraseña</label>
+        <input 
+          type="password" 
+          v-model="password" 
+          placeholder="Contraseña" 
+          required 
+          class="input input-bordered w-full bg-gray-100 text-gray-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" 
+        />
       </div>
-      <button type="submit" class="btn btn-primary w-full">Iniciar sesión</button>
-      <div v-if="error" class="alert alert-error mt-4">
+      <button type="submit" class="btn btn-primary w-full bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 rounded-md py-2">
+        Iniciar sesión
+      </button>
+
+      <div v-if="error" class="alert alert-error mt-4 text-red-600">
         {{ error }}
       </div>
+
+      <!-- Enlace de login como usuario -->
+      <p class="mt-6 text-center text-sm">
+        ¿No eres administrador? 
+        <router-link to="/userlogin" class="text-indigo-600 hover:text-indigo-700">
+          Iniciar sesión como usuario
+        </router-link>
+      </p>
     </form>
   </div>
 </template>
@@ -49,7 +72,7 @@ export default {
 
         if (isAuthenticated) {
           authStore.loginAsAdmin(); // Marca al administrador como autenticado
-          this.$router.push('/'); // Redirige a la página principal
+          this.$router.push('/'); // Redirige al dashboard de administrador
         } else {
           this.error = "Credenciales incorrectas";
         }
@@ -61,10 +84,3 @@ export default {
   },
 };
 </script>
-
-<style scoped>
-.login-container {
-  background-color: var(--daisyui-base-100);
-  color: var(--daisyui-base-content);
-}
-</style>

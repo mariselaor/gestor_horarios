@@ -1,7 +1,7 @@
 <template>
   <div id="app">
     <!-- El menú solo se muestra si la ruta no tiene hideMenu en su meta -->
-    <Menu v-if="!$route.meta.hideMenu" /> 
+    <Menu v-if="!$route.meta.hideMenu" />
     <div class="content">
       <router-view />
     </div>

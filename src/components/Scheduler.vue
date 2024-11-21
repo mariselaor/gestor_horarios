@@ -1,5 +1,10 @@
 <template>
-  <div class="p-6 max-w-full mx-auto bg-base-100 rounded-xl shadow-lg">
+  <div class="relative p-6 max-w-full mx-auto bg-base-100 rounded-xl shadow-lg">
+    <!-- Botón de Cerrar Sesión -->
+    <button @click="abrirConfirmacionCerrarSesion" class="absolute top-4 right-4 btn btn-sm btn-outline btn-error">
+      Cerrar sesión
+    </button>
+
     <h2 class="text-xl font-semibold text-primary mb-4 text-center">Categoría seleccionada: {{ selectedCategoria }}</h2>
 
     <div class="mb-6">
@@ -28,15 +33,17 @@
                 <th>Horario</th>
                 <th>Docente</th>
                 <th>Salón</th>
+                <th>Carrera</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="materia in materiasSeleccionadas" :key="materia.id">
                 <td>{{ materia.asignatura }}</td>
                 <td>{{ materia.dia }}</td>
-                <td>{{ materia.horario }}</td>
+                <td>{{ materia.horaInicio }} - {{ materia.horaFin }}</td>
                 <td>{{ materia.docente }}</td>
                 <td>{{ materia.salon }}</td>
+                <td>{{ materia.carrera }}</td>
               </tr>
             </tbody>
           </table>
@@ -54,7 +61,6 @@
                 :value="materia.id"
                 v-model="materiasSeleccionadasIds"
                 class="checkbox checkbox-primary"
-                @change="guardarSeleccion(materia)"
               />
               <span>{{ materia.asignatura }}</span>
             </label>
@@ -62,15 +68,21 @@
         </div>
       </div>
     </div>
+
+    <!-- Componente de Cierre de Sesión -->
+    <CerrarSesion v-if="mostrarCierreSesion" @cerrar-alerta="cerrarAlerta" />
   </div>
 </template>
 
 <script>
-import { db } from '@/stores/firebase';
-import { collection, getDocs, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
+import { db } from '@/stores/firebase'; 
+import { collection, getDocs } from 'firebase/firestore';
+import CerrarSesion from './auth/CerrarSesion.vue';
 
 export default {
+  components: {
+    CerrarSesion
+  },
   data() {
     return {
       categorias: [],
@@ -78,8 +90,8 @@ export default {
       selectedCategoriaId: null,
       selectedCategoria: null,
       categoriaInfo: null,
-      userID: null, // ID del usuario autenticado
-      materiasSeleccionadasIds: [], // Materias seleccionadas del usuario actual
+      materiasSeleccionadasIds: JSON.parse(localStorage.getItem('materiasSeleccionadas')) || [],
+      mostrarCierreSesion: false, // Variable para mostrar el componente de cierre de sesión
     };
   },
   computed: {
@@ -97,14 +109,6 @@ export default {
   },
   async created() {
     await this.fetchCategorias();
-
-    // Observar el estado de autenticación
-    onAuthStateChanged(this.$firebaseAuth, async (user) => {
-      if (user) {
-        this.userID = user.uid;
-        await this.cargarMateriasSeleccionadas();
-      }
-    });
   },
   methods: {
     async fetchCategorias() {
@@ -117,17 +121,20 @@ export default {
             id: doc.id,
             ...doc.data(),
           }));
+
           this.categoriasConHorarios = await this.getCategoriasConHorarios(this.categorias);
         }
       } catch (error) {
         console.error('Error al obtener las categorías:', error);
       }
     },
+
     async getCategoriasConHorarios(categorias) {
       const categoriasConHorarios = [];
       for (let categoria of categorias) {
         const horariosRef = collection(db, 'categorias', categoria.id, 'horarios');
         const horariosSnapshot = await getDocs(horariosRef);
+
         if (!horariosSnapshot.empty) {
           categoriasConHorarios.push({
             id: categoria.id,
@@ -135,49 +142,43 @@ export default {
             horarios: horariosSnapshot.docs.map(doc => ({
               id: doc.id,
               ...doc.data(),
+              carrera: categoria.nombre
             })),
           });
         }
       }
+
       return categoriasConHorarios;
     },
+
     mostrarInformacion(categoriaSeleccionada) {
       this.selectedCategoria = categoriaSeleccionada.nombre;
       this.categoriaInfo = categoriaSeleccionada;
       this.selectedCategoriaId = categoriaSeleccionada.id;
     },
-    async guardarSeleccion(materia) {
-      if (!this.userID) return;
 
-      const userRef = doc(db, 'usuarios', this.userID);
+    abrirConfirmacionCerrarSesion() {
+      this.mostrarCierreSesion = true; // Mostrar el componente de cierre de sesión
+    },
 
-      try {
-        if (this.materiasSeleccionadasIds.includes(materia.id)) {
-          // Eliminar materia
-          await updateDoc(userRef, {
-            horarios: arrayRemove(materia),
-          });
-        } else {
-          // Agregar materia
-          await updateDoc(userRef, {
-            horarios: arrayUnion(materia),
-          });
-        }
-      } catch (error) {
-        console.error('Error al guardar la selección:', error);
-      }
-    },
-    async cargarMateriasSeleccionadas() {
-      const userRef = doc(db, 'usuarios', this.userID);
-      const userSnapshot = await getDoc(userRef);
-      if (userSnapshot.exists()) {
-        this.materiasSeleccionadasIds = userSnapshot.data().horarios.map(h => h.id);
-      }
-    },
+    cerrarAlerta() {
+      this.mostrarCierreSesion = false; // Ocultar el componente de cierre de sesión
+    }
   },
+  watch: {
+    materiasSeleccionadasIds(newMaterias) {
+      localStorage.setItem('materiasSeleccionadas', JSON.stringify(newMaterias));
+    }
+  }
 };
 </script>
 
 <style scoped>
-/* Estilos con DaisyUI y Tailwind */
+.fixed {
+  z-index: 1000;
+}
+
+.bg-opacity-50 {
+  background-color: rgba(0, 0, 0, 0.5);
+}
 </style>
